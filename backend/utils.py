@@ -16,6 +16,15 @@ from dotenv import load_dotenv
 # Ensure the .env file is loaded as early as possible.
 load_dotenv(override=False)
 
+# --- Azure AD token provider -----------------------------------------------------
+
+def _get_azure_ad_token(*args, **kwargs) -> str:
+    """Fetch an Azure AD token using DefaultAzureCredential."""
+    from azure.identity import DefaultAzureCredential  # type: ignore
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://cognitiveservices.azure.com/.default")
+    return token.token
+
 # --- Constants -------------------------------------------------------------------
 
 # Load system prompt from markdown file
@@ -51,9 +60,15 @@ def get_agent_response(messages: List[Dict[str, str]]) -> List[Dict[str, str]]: 
     else:
         current_messages = messages
 
+    # Build optional kwargs for Azure AD auth
+    extra_kwargs = {}
+    if MODEL_NAME.startswith("azure/"):
+        extra_kwargs["azure_ad_token_provider"] = _get_azure_ad_token
+
     completion = litellm.completion(
         model=MODEL_NAME,
-        messages=current_messages, # Pass the full history
+        messages=current_messages,
+        **extra_kwargs,
     )
 
     assistant_reply_content: str = (
